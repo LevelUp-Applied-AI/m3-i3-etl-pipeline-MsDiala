@@ -18,7 +18,12 @@ def extract(engine):
         dict: {"customers": df, "products": df, "orders": df, "order_items": df}
     """
     # TODO: Implement extraction
-    pass
+    return {
+        "customers": pd.read_sql("SELECT * FROM customers", engine),
+        "products": pd.read_sql("SELECT * FROM products", engine),
+        "orders": pd.read_sql("SELECT * FROM orders", engine),
+        "order_items": pd.read_sql("SELECT * FROM order_items", engine),
+    }
 
 
 def transform(data_dict):
@@ -41,7 +46,39 @@ def transform(data_dict):
             total_revenue, avg_order_value, top_category
     """
     # TODO: Implement transformation
-    pass
+    customers = data_dict["customers"]
+    products = data_dict["products"]
+    orders = data_dict["orders"]
+    order_items = data_dict["order_items"]
+
+    df = orders.merge(order_items, on="order_id")
+    df = df.merge(products, on="product_id")
+    df = df.merge(customers, on="customer_id")
+
+    df["line_total"] = df["quantity"] * df["unit_price"]
+
+    df = df[df["status"] != "cancelled"]
+    df = df[df["quantity"] <= 100]
+
+    agg = df.groupby(["customer_id", "customer_name", "city"]).agg(
+        total_orders=("order_id", "nunique"),
+        total_revenue=("line_total", "sum"),
+    ).reset_index()
+
+    agg["avg_order_value"] = agg["total_revenue"] / agg["total_orders"]
+
+    top_cat = (
+        df.groupby(["customer_id", "category"])["line_total"]
+        .sum()
+        .reset_index()
+        .sort_values(["customer_id", "line_total"], ascending=[True, False])
+        .drop_duplicates("customer_id")
+        .rename(columns={"category": "top_category"})
+    )
+
+    final_df = agg.merge(top_cat[["customer_id", "top_category"]], on="customer_id")
+
+    return final_df
 
 
 def validate(df):
@@ -63,7 +100,18 @@ def validate(df):
         ValueError: if any critical check fails
     """
     # TODO: Implement validation
-    pass
+    checks = {
+        "no_null_customer_id": df["customer_id"].notnull().all(),
+        "no_null_customer_name": df["customer_name"].notnull().all(),
+        "positive_revenue": (df["total_revenue"] > 0).all(),
+        "no_duplicate_ids": df["customer_id"].is_unique,
+        "positive_orders": (df["total_orders"] > 0).all(),
+    }
+
+    if not all(checks.values()):
+        raise ValueError(f"Validation failed: {checks}")
+
+    return checks
 
 
 def load(df, engine, csv_path):
@@ -75,7 +123,10 @@ def load(df, engine, csv_path):
         csv_path: path for CSV output
     """
     # TODO: Implement loading
-    pass
+    df.to_sql("customer_summary", engine, if_exists="replace", index=False)
+
+    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+    df.to_csv(csv_path, index=False)
 
 
 def main():
@@ -86,7 +137,22 @@ def main():
     # 3. Transform
     # 4. Validate
     # 5. Load to customer_summary table and output/customer_analytics.csv
-    pass
+    db_url = os.getenv(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5434/amman_market"
+    )
+
+    engine = create_engine(db_url)
+
+    data = extract(engine)
+    transformed = transform(data)
+    validate(transformed)
+
+    load(
+        transformed,
+        engine,
+        "output/customer_analytics.csv"
+    )
 
 
 if __name__ == "__main__":

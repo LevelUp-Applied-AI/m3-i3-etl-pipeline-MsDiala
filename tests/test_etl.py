@@ -7,21 +7,83 @@ Write at least 3 tests:
 """
 import pandas as pd
 import pytest
+from etl_pipeline import transform, validate  # replace with your actual file name if different
 
 
 def test_transform_filters_cancelled():
     """Create test DataFrames with a cancelled order. Confirm it's excluded."""
     # TODO: Implement
-    pass
+    data = {
+        "customers": pd.DataFrame({
+            "customer_id": [1],
+            "customer_name": ["Diala"],
+            "city": ["Amman"]
+        }),
+        "products": pd.DataFrame({
+            "product_id": [1],
+            "category": ["Tech"]
+        }),
+        "orders": pd.DataFrame({
+            "order_id": [1],
+            "customer_id": [1],
+            "status": ["cancelled"]
+        }),
+        "order_items": pd.DataFrame({
+            "order_id": [1],
+            "product_id": [1],
+            "quantity": [1],
+            "unit_price": [100]
+        })
+    }
+
+    result = transform(data)
+
+    assert result.empty
 
 
 def test_transform_filters_suspicious_quantity():
     """Create test DataFrames with quantity > 100. Confirm it's excluded."""
     # TODO: Implement
-    pass
+    data = {
+        "customers": pd.DataFrame({
+            "customer_id": [1],
+            "customer_name": ["Diala"],
+            "city": ["Amman"]
+        }),
+        "products": pd.DataFrame({
+            "product_id": [1],
+            "category": ["Tech"]
+        }),
+        "orders": pd.DataFrame({
+            "order_id": [1],
+            "customer_id": [1],
+            "status": ["completed"]
+        }),
+        "order_items": pd.DataFrame({
+            "order_id": [1],
+            "product_id": [1],
+            "quantity": [150],
+            "unit_price": [100]
+        })
+    }
+
+    result = transform(data)
+
+    assert result.empty
 
 
 def test_validate_catches_nulls():
     """Create a DataFrame with null customer_id. Confirm validate() raises ValueError."""
     # TODO: Implement
-    pass
+    df = pd.DataFrame({
+        "customer_id": [None],
+        "customer_name": ["Diala"],
+        "city": ["Amman"],
+        "total_orders": [1],
+        "total_revenue": [100],
+        "avg_order_value": [100],
+        "top_category": ["Tech"]
+    })
+
+    with pytest.raises(ValueError):
+        validate(df)
